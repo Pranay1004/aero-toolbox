@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reentry Aerothermodynamics Calculator</title>
+<script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="window">
+<div class="notebook">
+  <div class="tab-bar">
+    <button class="tab-btn active" data-tab="stagnation">  Stagnation  </button>
+    <button class="tab-btn" data-tab="bc">  BC Calc  </button>
+    <button class="tab-btn" data-tab="ballistic">  Ballistic  </button>
+    <button class="tab-btn" data-tab="lifting">  Lifting  </button>
+    <button class="tab-btn" data-tab="trajectory">  Trajectory  </button>
+    <button class="tab-btn" data-tab="tps">  TPS Sizing  </button>
+    <button class="tab-btn" data-tab="sweep">  Parametric Sweep  </button>
+    <button class="tab-btn" data-tab="corridor">  Corridor  </button>
+    <button class="tab-btn" data-tab="openfoam">  OpenFOAM / PATO  </button>
+    <button class="tab-btn" data-tab="reference">  Reference  </button>
+  </div>
+
+  <!-- ==================== TAB 1: STAGNATION ==================== -->
+  <div id="page-stagnation" class="tab-page active">
+    <div class="labelframe">
+      <div class="labelframe-title">Entry conditions</div>
+      <div class="form-grid">
+        <span class="form-label-bold">Target Body:</span>
+        <select id="s-planet" class="form-combo"><option>Earth</option><option>Mars</option><option>Venus</option></select>
+        <span class="form-label">Entry altitude h₀ (km):</span>
+        <input id="s-h0" class="form-entry" type="text" value="120.0">
+        <span class="form-label">Entry velocity V₀ (m/s):</span>
+        <input id="s-V0" class="form-entry" type="text" value="11000.0">
+        <span class="form-label">Entry angle γ₀ (deg):</span>
+        <input id="s-gamma" class="form-entry" type="text" value="-20.0">
+        <span class="form-label">Nose radius Rₙ (m):</span>
+        <input id="s-RN" class="form-entry" type="text" value="1.0">
+        <span class="form-label">BC (kg/m²):</span>
+        <input id="s-BC" class="form-entry" type="text" value="400.0">
+        <span class="form-label">L/D:</span>
+        <input id="s-LD" class="form-entry" type="text" value="0.0">
+        <span class="form-label">Emissivity ε:</span>
+        <input id="s-eps" class="form-entry" type="text" value="0.85">
+        <span class="form-label">Exp. duration (s) [0=auto]:</span>
+        <input id="s-tmax" class="form-entry" type="text" value="0.0">
+      </div>
+      <div class="btn-row">
+        <button class="calc-btn" onclick="calcStagnation()">Calculate &amp; Plot</button>
+        <button class="calc-btn" onclick="exportCSV('stagnation')">Export CSV</button>
+        <label class="cb-label"><input type="checkbox" id="s-log"> Log scale (plots)</label>
+      </div>
+    </div>
+    <div class="paned">
+      <div class="pane-left"><textarea id="s-output" class="output-text" readonly></textarea></div>
+      <div class="pane-right"><div id="s-plot" class="plot-area"></div></div>
+    </div>
+  </div>
+
+  <!-- ==================== TAB 2: BC CALC ==================== -->
+  <div id="page-bc" class="tab-page">
+    <div class="labelframe">
+      <div class="labelframe-title">Ballistic Coefficient: BC = m / (Cd · S)</div>
+      <div class="form-grid">
+        <span class="form-label">Mass m (kg):</span><input id="bc-m" class="form-entry" type="text" value="">
+        <span class="form-label">Drag coeff Cd:</span><input id="bc-cd" class="form-entry" type="text" value="">
+        <span class="form-label">Ref area S (m²):</span><input id="bc-s" class="form-entry" type="text" value="">
+      </div>
+      <div style="margin-top:6px">
+        <span class="form-label-bold">BC (kg/m²):</span>
+        <span id="bc-result" style="font-family:Consolas; font-size:10pt; font-weight:bold; color:#0072B2; margin-left:8px"></span>
+      </div>
+      <div class="btn-row"><button class="calc-btn" onclick="calcBC()">Calculate BC</button></div>
+    </div>
+    <div class="labelframe">
+      <div class="labelframe-title">Inverse: solve for m, Cd, or S</div>
+      <div class="radio-group" style="margin-bottom:6px">
+        <label class="radio-label"><input type="radio" name="bc-inv" value="mass" checked> Find m (given Cd, S)</label>
+        <label class="radio-label"><input type="radio" name="bc-inv" value="cd"> Find Cd (given m, S)</label>
+        <label class="radio-label"><input type="radio" name="bc-inv" value="area"> Find S (given m, Cd)</label>
+      </div>
+      <div class="form-grid">
+        <span class="form-label">BC (kg/m²):</span><input id="bc-inv-bc" class="form-entry" type="text" value="">
+        <span class="form-label">Param 1:</span><input id="bc-inv-p1" class="form-entry" type="text" value="">
+        <span class="form-label">Param 2:</span><input id="bc-inv-p2" class="form-entry" type="text" value="">
+      </div>
+      <div style="margin-top:6px">
+        <span class="form-label-bold">Result:</span>
+        <span id="bc-inv-result" style="font-family:Consolas; font-size:10pt; font-weight:bold; color:#D55E00; margin-left:8px"></span>
+      </div>
+      <div class="btn-row"><button class="calc-btn" onclick="calcBCInv()">Calculate</button></div>
+    </div>
+  </div>
+
+  <!-- ==================== TAB 3: BALLISTIC ==================== -->
+  <div id="page-ballistic" class="tab-page">
+    <div class="labelframe">
+      <div class="labelframe-title">Inputs</div>
+      <div class="form-grid">
+        <span class="form-label">Vₑ (m/s):</span><input id="bl-Ve" class="form-entry" type="text" value="11000.0">
+        <span class="form-label">BC (kg/m²):</span><input id="bl-BC" class="form-entry" type="text" value="400.0">
+        <span class="form-label">γₑ (deg):</span><input id="bl-gamma" class="form-entry" type="text" value="20.0">
+        <span class="form-label">Rₙ (m):</span><input id="bl-RN" class="form-entry" type="text" value="1.0">
+      </div>
+      <div class="btn-row"><button class="calc-btn" onclick="calcBallistic()">Calculate &amp; Plot</button></div>
+    </div>
+    <div class="paned">
+      <div class="pane-left"><textarea id="bl-output" class="output-text" readonly></textarea></div>
+      <div class="pane-right"><div id="bl-plot" class="plot-area"></div></div>
+    </div>
+  </div>
+
+  <!-- ==================== TAB 4: LIFTING ==================== -->
+  <div id="page-lifting" class="tab-page">
+    <div class="labelframe">
+      <div class="labelframe-title">Inputs</div>
+      <div class="form-grid">
+        <span class="form-label-bold">Target Body:</span>
+        <select id="lt-planet" class="form-combo"><option>Earth</option><option>Mars</option><option>Venus</option></select>
+        <span class="form-label">Vₑ (m/s):</span><input id="lt-Ve" class="form-entry" type="text" value="7900.0">
+        <span class="form-label">BC (kg/m²):</span><input id="lt-BC" class="form-entry" type="text" value="150.0">
+        <span class="form-label">L/D:</span><input id="lt-LD" class="form-entry" type="text" value="0.3">
+        <span class="form-label">Base γₑ (deg):</span><input id="lt-gamma" class="form-entry" type="text" value="1.5">
+        <span class="form-label">Rₙ (m):</span><input id="lt-RN" class="form-entry" type="text" value="1.0">
+        <span class="form-label">Angles (3 to 5, optional):</span><input id="lt-angles" class="form-entry" type="text" value="" style="width:200px">
+      </div>
+      <div class="btn-row"><button class="calc-btn" onclick="calcLifting()">Calculate &amp; Plot Variations</button></div>
+    </div>
+    <div class="paned">
+      <div class="pane-left"><textarea id="lt-output" class="output-text" readonly></textarea></div>
+      <div class="pane-right"><div id="lt-plot" class="plot-area"></div></div>
+    </div>
+  </div>
+
+  <!-- ==================== TAB 5: TRAJECTORY ==================== -->
+  <div id="page-trajectory" class="tab-page">
+    <div class="labelframe">
+      <div class="labelframe-title">Validated Historical Flight Presets (Click to Load &amp; Run)</div>
+      <div class="btn-row">
+        <button class="preset-btn" onclick="loadPreset('space_shuttle')">Space Shuttle (STS-1)</button>
+        <button class="preset-btn" onclick="loadPreset('apollo_11')">Apollo 11 (Lunar Return)</button>
+        <button class="preset-btn" onclick="loadPreset('orion')">Orion (Artemis 1)</button>
+        <button class="preset-btn" onclick="loadPreset('rlv_td')">RLV-TD</button>
+        <button class="preset-btn" onclick="loadPreset('mars_msl')">Mars MSL</button>
+        <button class="preset-btn" onclick="loadPreset('venus_pioneer')">Venus Pioneer</button>
+      </div>
+    </div>
+    <div class="labelframe">
+      <div class="labelframe-title">Entry conditions (integrates from h0 to ground)</div>
+      <div class="form-grid">
+        <span class="form-label-bold">Target Body:</span>
+        <select id="tr-planet" class="form-combo"><option>Earth</option><option>Mars</option><option>Venus</option></select>
+        <span class="form-label">Entry speed (m/s):</span><input id="tr-V0" class="form-entry" type="text" value="7800.0">
+        <span class="form-label">γ₀ (deg, −=down):</span><input id="tr-gamma" class="form-entry" type="text" value="-6.0">
+        <span class="form-label">Entry alt (km):</span><input id="tr-h0" class="form-entry" type="text" value="120.0">
+        <span class="form-label">Rₙ (m):</span><input id="tr-RN" class="form-entry" type="text" value="0.3">
+        <span class="form-label">BC (kg/m²):</span><input id="tr-BC" class="form-entry" type="text" value="150.0">
+        <span class="form-label">L/D:</span><input id="tr-LD" class="form-entry" type="text" value="0.3">
+        <span class="form-label">Bank σ (deg):</span><input id="tr-bank" class="form-entry" type="text" value="0.0">
+        <span class="form-label">Time step dt (s):</span><input id="tr-dt" class="form-entry" type="text" value="0.1">
+        <span class="form-label">Exp. duration (s) [0=auto]:</span><input id="tr-tmax" class="form-entry" type="text" value="0.0">
+      </div>
+      <div class="btn-row">
+        <button class="calc-btn" onclick="calcTrajectory()">RUN TRAJECTORY</button>
+        <button class="calc-btn" onclick="pushToTPS()">Push Trajectory to TPS Sizing</button>
+        <button class="calc-btn" onclick="openSolver('duration')">Match Target Duration</button>
+        <button class="calc-btn" onclick="openSolver('heating')">Achieve Heating Conditions</button>
+        <button class="calc-btn" onclick="openSolver('temp')">Match Target T_surface</button>
+        <button class="calc-btn" onclick="runMC()">Monte Carlo (3σ)</button>
+        <button class="calc-btn" onclick="pushToOF()">Push to OpenFOAM/PATO</button>
+        <button class="calc-btn" onclick="exportCSV('trajectory')">Export CSV</button>
+        <label class="cb-label"><input type="checkbox" id="tr-log"> Log scale (plots)</label>
+      </div>
+    </div>
+    <div class="paned">
+      <div class="pane-left"><textarea id="tr-output" class="output-text" readonly></textarea></div>
+      <div class="pane-right"><div id="tr-plot" class="plot-area"></div></div>
+    </div>
+  </div>
+
+  <!-- ==================== TAB 6: TPS SIZING ==================== -->
+  <div id="page-tps" class="tab-page">
+    <div class="labelframe">
+      <div class="labelframe-title">Heating Environment &amp; Input Source Selection</div>
+      <div class="form-grid" style="grid-template-columns:auto auto auto auto auto auto">
+        <span class="form-label">Heating Source:</span>
+        <select id="tps-source" class="form-combo" style="width:250px"><option>Active Trajectory Profile</option><option value="custom">Custom Heating Input (q_peak &amp; duration)</option></select>
+        <span class="form-label">Mapped q_peak (W/cm²):</span><input id="tps-custom-q" class="form-entry" type="text" value="50.0" disabled>
+        <span class="form-label">Mapped Duration (s):</span><input id="tps-custom-t" class="form-entry" type="text" value="600.0" disabled>
+      </div>
+    </div>
+    <div class="labelframe">
+      <div class="labelframe-title">Layer 1: Outer Reaction Glass Coating Properties</div>
+      <div class="form-grid">
+        <span class="form-label-bold">Target Body:</span>
+        <select id="tps-planet" class="form-combo"><option>Earth</option><option>Mars</option><option>Venus</option></select>
+        <span class="form-label">Thickness (μm):</span><input id="tps-glass-d" class="form-entry" type="text" value="300.0">
+        <span class="form-label">Conductivity k (W/m·K):</span><input id="tps-glass-k" class="form-entry" type="text" value="1.4">
+        <span class="form-label">Emissivity ε:</span><input id="tps-eps" class="form-entry" type="text" value="0.85">
+        <span class="form-label">Target T_surf (K):</span><input id="tps-Tsurf" class="form-entry" type="text" value="1533.15">
+      </div>
+    </div>
+    <div class="labelframe">
+      <div class="labelframe-title">Layer 2: Core Silica Tile Insulation Properties</div>
+      <div class="form-grid">
+        <span class="form-label">Tile Thickness d (mm):</span><input id="tps-d" class="form-entry" type="text" value="50.0">
+        <span class="form-label">Density ρ (kg/m³):</span><input id="tps-rho" class="form-entry" type="text" value="250.0">
+        <span class="form-label">Conductivity k (W/m·K):</span><input id="tps-k" class="form-entry" type="text" value="0.15">
+        <span class="form-label">Specific Heat cp (J/kg·K):</span><input id="tps-cp" class="form-entry" type="text" value="1200.0">
+        <span class="form-label">Cᵥ (J/kg·K):</span><input id="tps-Cv" class="form-entry" type="text" value="900.0">
+        <span class="form-label">hᵥ (J/kg):</span><input id="tps-hv" class="form-entry" type="text" value="2500000">
+        <label class="cb-label" style="grid-column:span 2"><input type="checkbox" id="tps-tdep" checked> Use Temp-Dependent k(T) &amp; Cp(T) Tables</label>
+      </div>
+    </div>
+    <div class="labelframe">
+      <div class="labelframe-title">Layer 3: Substructure Metal Chassis Properties</div>
+      <div class="form-grid">
+        <span class="form-label">Material:</span>
+        <select id="tps-sub-mat" class="form-combo" style="width:180px">
+          <option>Al-7xxx (Default)</option><option>Al-2024</option><option>Al-6061</option>
+          <option>Inconel 718</option><option>SS-304</option><option>Titanium (Ti-6Al-4V)</option>
+        </select>
+        <span class="form-label">Thickness (mm):</span><input id="tps-sub-d" class="form-entry" type="text" value="5.0">
+        <span class="form-label">Density (kg/m³):</span><input id="tps-sub-rho" class="form-entry" type="text" value="2810.0">
+        <span class="form-label">Cp (J/kg·K):</span><input id="tps-sub-cp" class="form-entry" type="text" value="960.0">
+        <span class="form-label">Max T_backwall (K):</span><input id="tps-target-T" class="form-entry" type="text" value="450.0">
+        <span class="form-label">Solver Method:</span>
+        <select id="tps-method" class="form-combo"><option>brentq</option><option>bisect</option><option>secant</option></select>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="calc-btn" onclick="calcTPS()">Calculate &amp; Plot Transient Backwall T</button>
+      <button class="calc-btn" onclick="solveTPS()">Size Tile: Achieve Desired T_backwall</button>
+      <button class="calc-btn" onclick="solveTPSTarget()">Size Entry Angle for Target T_surf</button>
+    </div>
+    <div class="paned">
+      <div class="pane-left"><textarea id="tps-output" class="output-text" readonly></textarea></div>
+      <div class="pane-right"><div id="tps-plot" class="plot-area"></div></div>
+    </div>
+  </div>
+
+  <!-- ==================== TAB 7: PARAMETRIC SWEEP ==================== -->
+  <div id="page-sweep" class="tab-page">
+    <div class="labelframe">
+      <div class="labelframe-title">Inputs &amp; Sweep Configuration</div>
+      <div class="form-grid">
+        <span class="form-label">V_atm (m/s):</span><input id="sw-Vatm" class="form-entry" type="text" value="7800.0">
+        <span class="form-label">γ_e (deg):</span><input id="sw-gamma" class="form-entry" type="text" value="-6.0">
+        <span class="form-label">BC (kg/m²):</span><input id="sw-BC" class="form-entry" type="text" value="150.0">
+        <span class="form-label">Rₙ (m):</span><input id="sw-RN" class="form-entry" type="text" value="0.3">
+        <span class="form-label">L/D:</span><input id="sw-LD" class="form-entry" type="text" value="0.3">
+        <span class="form-label">Emissivity ε:</span><input id="sw-eps" class="form-entry" type="text" value="0.85">
+        <span class="form-label">S-G k:</span><input id="sw-ksg" class="form-entry" type="text" value="0.00017415">
+        <span class="form-label">Dist. θ (deg):</span><input id="sw-theta" class="form-entry" type="text" value="30.0">
+      </div>
+      <div class="labelframe" style="margin-top:6px">
+        <div class="labelframe-title">Sweep Settings</div>
+        <div class="form-grid">
+          <span class="form-label">Sweep Variable:</span>
+          <div class="radio-group">
+            <label class="radio-label"><input type="radio" name="sw-var" value="gamma" checked> Flight Path Angle (γ_e)</label>
+            <label class="radio-label"><input type="radio" name="sw-var" value="BC"> Ballistic Coeff (BC)</label>
+            <label class="radio-label"><input type="radio" name="sw-var" value="Vatm"> Entry Velocity (V_atm)</label>
+          </div>
+          <span class="form-label">Start:</span><input id="sw-start" class="form-entry" type="text" value="-5.0" style="width:70px">
+          <span class="form-label">End:</span><input id="sw-end" class="form-entry" type="text" value="-25.0" style="width:70px">
+          <span class="form-label">Steps:</span><input id="sw-steps" class="form-entry" type="text" value="15" style="width:60px">
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="calc-btn" onclick="calcSinglePoint()">Run Single Point</button>
+        <button class="calc-btn" onclick="calcSweep()">Run Parametric Sweep</button>
+        <label class="cb-label"><input type="checkbox" id="sw-log"> Log scale (plots)</label>
+      </div>
+    </div>
+    <div class="paned">
+      <div class="pane-left"><textarea id="sw-output" class="output-text" readonly></textarea></div>
+      <div class="pane-right"><div id="sw-plot" class="plot-area"></div></div>
+    </div>
+  </div>
+
+  <!-- ==================== TAB 8: CORRIDOR ==================== -->
+  <div id="page-corridor" class="tab-page">
+    <div class="labelframe">
+      <div class="labelframe-title">What is the reentry corridor?</div>
+      <div style="font-size:8pt; color:#333; line-height:1.4; padding:4px">
+        The corridor is the altitude band at each velocity where the vehicle can safely fly.<br>
+        Upper boundary = equilibrium glide (lift balances gravity, Eq. 15.47)<br>
+        Lower boundary = min of: heat flux limit (15.48), load factor limit (15.49), dynamic pressure limit (15.50)<br>
+        Status OK = corridor open (h_upper &gt; h_lower). NO = corridor closed.
+      </div>
+    </div>
+    <div class="labelframe">
+      <div class="labelframe-title">Corridor parameters</div>
+      <div class="form-grid">
+        <span class="form-label">Rₙ (m):</span><input id="co-RN" class="form-entry" type="text" value="0.3">
+        <span class="form-label">BC (kg/m²):</span><input id="co-BC" class="form-entry" type="text" value="100.0">
+        <span class="form-label">L/D:</span><input id="co-LD" class="form-entry" type="text" value="1.2">
+        <span class="form-label">q̇_max (W/cm²):</span><input id="co-qtmax" class="form-entry" type="text" value="60.0">
+        <span class="form-label">n_max (g):</span><input id="co-nmax" class="form-entry" type="text" value="2.5">
+        <span class="form-label">q_max (Pa):</span><input id="co-qmax" class="form-entry" type="text" value="10000.0">
+      </div>
+      <div class="btn-row">
+        <button class="calc-btn" onclick="calcCorridor()">Show Data</button>
+        <button class="calc-btn" onclick="calcCorridorDrag()">Plot Drag</button>
+        <button class="calc-btn" onclick="calcCorridorAlt()">Plot Altitude</button>
+        <button class="calc-btn" onclick="exportCSV('corridor')">Export CSV</button>
+      </div>
+    </div>
+    <div class="paned">
+      <div class="pane-left"><textarea id="co-output" class="output-text" readonly></textarea></div>
+      <div class="pane-right"><div id="co-plot" class="plot-area"></div></div>
+    </div>
+  </div>
+
+  <!-- ==================== TAB 9: OPENFOAM / PATO ==================== -->
+  <div id="page-openfoam" class="tab-page">
+    <div class="labelframe">
+      <div class="labelframe-title">OpenFOAM / PATO Surface Boundary Condition Exporter (boundaryConditions.txt)</div>
+      <div class="form-grid">
+        <span class="form-label">Simulation Title:</span><input id="of-title" class="form-entry" type="text" value="Earth Reentry Trajectory (PATO)" style="width:250px">
+        <span class="form-label">Nose Radius RN (m):</span><input id="of-RN" class="form-entry" type="text" value="0.3">
+        <span class="form-label">Emissivity ε:</span><input id="of-eps" class="form-entry" type="text" value="0.85">
+        <span class="form-label">Output Δt (s):</span><input id="of-dt" class="form-entry" type="text" value="10.0">
+      </div>
+      <div class="btn-row">
+        <button class="calc-btn" onclick="calcOpenFOAM()">GENERATE boundaryConditions.txt</button>
+        <button class="calc-btn" onclick="downloadOF()">Export boundaryConditions.txt File</button>
+      </div>
+    </div>
+    <textarea id="of-output" class="output-text" readonly style="height:calc(100% - 140px); white-space:pre; overflow:auto"></textarea>
+  </div>
+
+  <!-- ==================== TAB 10: REFERENCE ==================== -->
+  <div id="page-reference" class="tab-page">
+    <div id="ref-content" class="ref-content"></div>
+  </div>
+</div>
+</div>
+
+<!-- Solver Modal -->
+<div id="solver-modal" style="display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.4);">
+  <div style="background:#f0f0f0; border:2px outset #c0c0c0; padding:20px; width:680px; max-height:560px; overflow:auto; position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
+      <h3 id="sv-title" style="font-size:11pt; margin:0"></h3>
+      <button class="small-btn" onclick="closeSolver()">&times;</button>
+    </div>
+    <div id="sv-form" class="form-grid" style="grid-template-columns:auto auto"></div>
+    <div class="btn-row" style="margin:10px 0"><button class="calc-btn" onclick="runSolver()">Solve</button></div>
+    <textarea id="sv-output" class="output-text" style="height:200px" readonly></textarea>
+    <div id="sv-plot" style="height:250px; margin-top:8px"></div>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
